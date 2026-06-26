@@ -1,0 +1,16 @@
+{
+  "name": "screen-live-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Password protected browser screen live room powered by LiveKit.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "vercel-build": "echo static build"
+  },
+  "dependencies": {},
+  "engines": {
+    "node": ">=20"
+  }
+}

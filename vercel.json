@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "cleanUrls": true,
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "Permissions-Policy", "value": "display-capture=(self), microphone=(self)" },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self'; connect-src 'self' ws: wss: https:; media-src 'self' blob:; img-src 'self' data:"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    { "source": "/((?!api/|style.css|app.js|favicon.ico).*)", "destination": "/index.html" }
+  ]
+}

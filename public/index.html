@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>朋友屏幕直播间</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="app-shell">
+    <section id="loginPanel" class="login-panel" aria-labelledby="loginTitle">
+      <div class="brand-row">
+        <span class="status-dot"></span>
+        <span>Private Live Room</span>
+      </div>
+      <h1 id="loginTitle">朋友屏幕直播间</h1>
+      <form id="loginForm" class="login-form">
+        <label>
+          昵称
+          <input id="displayNameInput" name="displayName" maxlength="24" autocomplete="nickname" placeholder="例如：小王" required>
+        </label>
+        <label>
+          房间密码
+          <input id="passwordInput" name="password" type="password" autocomplete="current-password" placeholder="输入观看或主播密码" required>
+        </label>
+        <label class="role-toggle">
+          <input id="broadcasterInput" name="broadcaster" type="checkbox">
+          <span>我要发起屏幕直播</span>
+        </label>
+        <button type="submit">进入房间</button>
+        <p id="loginError" class="error-text" role="alert"></p>
+      </form>
+    </section>
+
+    <section id="roomPanel" class="room-panel" hidden>
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">房间</p>
+          <h2 id="roomNameText">friends-screen-room</h2>
+        </div>
+        <div class="topbar-actions">
+          <span class="counter"><span id="onlineCount">1</span> 人在线</span>
+          <button id="startShareBtn" class="primary-action" type="button">开始直播</button>
+          <button id="stopShareBtn" type="button" disabled>停止</button>
+        </div>
+      </header>
+
+      <div class="content-grid">
+        <section class="stage" aria-label="直播画面">
+          <div id="emptyState" class="empty-state">
+            <strong>等待屏幕直播</strong>
+            <span>主播开始共享后，画面会显示在这里。</span>
+          </div>
+          <div id="videosContainer" class="videos-container"></div>
+        </section>
+
+        <aside class="side-panel" aria-label="聊天">
+          <div class="panel-header">
+            <h3>聊天</h3>
+            <span id="connectionState">连接中</span>
+          </div>
+          <div id="chatMessages" class="chat-messages" aria-live="polite"></div>
+          <form id="chatForm" class="chat-form">
+            <input id="chatInput" maxlength="300" placeholder="说点什么..." autocomplete="off">
+            <button type="submit">发送</button>
+          </form>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <template id="videoTileTemplate">
+    <article class="video-tile">
+      <div class="video-host"></div>
+      <footer>
+        <span class="participant-name"></span>
+        <button class="mute-btn" type="button">静音</button>
+      </footer>
+    </article>
+  </template>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

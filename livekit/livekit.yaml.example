@@ -1,0 +1,20 @@
+port: 7880
+bind_addresses:
+  - ""
+
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 60000
+  use_external_ip: true
+
+keys:
+  devkey: replace-with-a-long-random-secret
+
+# For production, configure TURN with your real domain and certificates.
+# turn:
+#   enabled: true
+#   domain: turn.your-domain.com
+#   tls_port: 5349
+#   cert_file: /etc/letsencrypt/live/turn.your-domain.com/fullchain.pem
+#   key_file: /etc/letsencrypt/live/turn.your-domain.com/privkey.pem
