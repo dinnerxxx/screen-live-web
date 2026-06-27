@@ -1,8 +1,15 @@
 node_modules/
 .env
 .env.production
+.env.local
+.vercel/
 npm-debug.log*
 *.local
 tools/
 deploy/generated/
 work-gh-auth-*.txt
+*.msi
+*.zip
+
+.vercel
+.env*

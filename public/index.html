@@ -9,36 +9,59 @@
 <body>
   <main class="app-shell">
     <section id="loginPanel" class="login-panel" aria-labelledby="loginTitle">
-      <div class="brand-row">
-        <span class="status-dot"></span>
-        <span>Private Live Room</span>
+      <div class="login-copy">
+        <div class="brand-row">
+          <span class="status-dot"></span>
+          <span>Private Live Room</span>
+        </div>
+        <h1 id="loginTitle">scshare</h1>
+        <p class="login-subtitle">输入昵称和房间密码后进入直播间。</p>
+        <div class="login-preview" aria-hidden="true">
+          <div class="preview-toolbar">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+          <div class="preview-screen">
+            <div class="preview-grid"></div>
+          </div>
+          <div class="preview-chat">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+        </div>
       </div>
-      <h1 id="loginTitle">scshare</h1>
-      <form id="loginForm" class="login-form">
-        <label>
-          昵称
-          <input id="displayNameInput" name="displayName" maxlength="24" autocomplete="nickname" placeholder="例如：小王" required>
-        </label>
-        <label>
-          房间密码
-          <input id="passwordInput" name="password" type="password" autocomplete="current-password" placeholder="输入观看或主播密码" required>
-        </label>
-        <label class="role-toggle">
-          <input id="broadcasterInput" name="broadcaster" type="checkbox">
-          <span>我要发起屏幕直播</span>
-        </label>
-        <button type="submit">进入房间</button>
-        <p id="loginError" class="error-text" role="alert"></p>
-      </form>
+      <div class="login-card">
+        <form id="loginForm" class="login-form">
+          <label>
+            昵称
+            <input id="displayNameInput" name="displayName" maxlength="24" autocomplete="nickname" placeholder="例如：小王" required>
+          </label>
+          <label>
+            房间密码
+            <input id="passwordInput" name="password" type="password" autocomplete="current-password" placeholder="输入观看或主播密码" required>
+          </label>
+          <label class="role-toggle">
+            <input id="broadcasterInput" name="broadcaster" type="checkbox">
+            <span>我要发起屏幕直播</span>
+          </label>
+          <button id="loginSubmitBtn" type="submit">进入房间</button>
+          <p id="loginError" class="error-text" role="alert"></p>
+        </form>
+      </div>
     </section>
 
     <section id="roomPanel" class="room-panel" hidden>
       <header class="topbar">
-        <div>
+        <div class="room-title">
           <p class="eyebrow">房间</p>
           <h2 id="roomNameText">friends-screen-room</h2>
+          <span id="currentUserText" class="user-chip">访客</span>
         </div>
         <div class="topbar-actions">
+          <span id="connectionState" class="state-pill">连接中</span>
+          <span id="currentRoleText" class="state-pill muted">观众</span>
           <span class="counter"><span id="onlineCount">1</span> 人在线</span>
           <button id="startShareBtn" class="primary-action" type="button">开始直播</button>
           <button id="stopShareBtn" type="button" disabled>停止</button>
@@ -49,15 +72,15 @@
         <section class="stage" aria-label="直播画面">
           <div id="emptyState" class="empty-state">
             <strong>等待屏幕直播</strong>
-            <span>主播开始共享后，画面会显示在这里。</span>
+            <span>主播开始共享后，画面会显示在这里</span>
           </div>
           <div id="videosContainer" class="videos-container"></div>
         </section>
 
         <aside class="side-panel" aria-label="聊天">
           <div class="panel-header">
-            <h3>聊天</h3>
-            <span id="connectionState">连接中</span>
+            <h3>讨论区</h3>
+            <span>Live chat</span>
           </div>
           <div id="chatMessages" class="chat-messages" aria-live="polite"></div>
           <form id="chatForm" class="chat-form">

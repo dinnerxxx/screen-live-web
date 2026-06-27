@@ -8,6 +8,7 @@ const state = {
   room: null,
   config: null,
   role: 'viewer',
+  displayName: '',
   localTracks: [],
   videoTiles: new Map(),
 };
@@ -16,10 +17,13 @@ const loginPanel = document.getElementById('loginPanel');
 const roomPanel = document.getElementById('roomPanel');
 const loginForm = document.getElementById('loginForm');
 const loginError = document.getElementById('loginError');
+const loginSubmitBtn = document.getElementById('loginSubmitBtn');
 const displayNameInput = document.getElementById('displayNameInput');
 const passwordInput = document.getElementById('passwordInput');
 const broadcasterInput = document.getElementById('broadcasterInput');
 const roomNameText = document.getElementById('roomNameText');
+const currentUserText = document.getElementById('currentUserText');
+const currentRoleText = document.getElementById('currentRoleText');
 const onlineCount = document.getElementById('onlineCount');
 const connectionState = document.getElementById('connectionState');
 const startShareBtn = document.getElementById('startShareBtn');
@@ -40,6 +44,11 @@ async function loadConfig() {
 
 function setLoginError(message) {
   loginError.textContent = message || '';
+}
+
+function setLoginBusy(isBusy) {
+  loginSubmitBtn.disabled = isBusy;
+  loginSubmitBtn.textContent = isBusy ? '进入中...' : '进入房间';
 }
 
 function setConnectionLabel(value) {
@@ -185,9 +194,9 @@ async function startShare() {
   try {
     const screenStream = await navigator.mediaDevices.getDisplayMedia({
       video: {
-        frameRate: { ideal: 30, max: 60 },
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
+        frameRate: { ideal: 30, max: 30 },
+        width: { ideal: 1280, max: 1280 },
+        height: { ideal: 720, max: 720 },
       },
       audio: true,
     });
@@ -198,6 +207,10 @@ async function startShare() {
       await publishTrack(screenVideo, {
         source: Track.Source.ScreenShare,
         name: 'screen',
+        videoEncoding: {
+          maxBitrate: 2500000,
+          maxFramerate: 30,
+        },
       });
     }
 
@@ -264,6 +277,7 @@ loginForm.addEventListener('submit', async (event) => {
 
   try {
     if (!state.config) await loadConfig();
+    setLoginBusy(true);
     const res = await fetch('/api/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -276,13 +290,18 @@ loginForm.addEventListener('submit', async (event) => {
     }
 
     state.role = body.role;
+    state.displayName = displayNameInput.value.trim();
     await connectRoom(body.token);
     loginPanel.hidden = true;
     roomPanel.hidden = false;
     startShareBtn.disabled = state.role !== 'broadcaster';
+    currentUserText.textContent = state.displayName || body.identity;
+    currentRoleText.textContent = state.role === 'broadcaster' ? '主播' : '观众';
     addChatMessage('', state.role === 'broadcaster' ? '你已作为主播进入房间' : '你已作为观众进入房间', true);
   } catch (error) {
     setLoginError(error.message || '网络错误');
+  } finally {
+    setLoginBusy(false);
   }
 });
 
