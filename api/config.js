@@ -1,4 +1,4 @@
-const { handleConfig, sendJson } = require('./_livekit');
+const { handleConfig, sendJson } = require('./_trtc');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {

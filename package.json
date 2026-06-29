@@ -2,14 +2,17 @@
   "name": "screen-live-web",
   "version": "1.0.0",
   "private": true,
-  "description": "Password protected browser screen live room powered by LiveKit.",
+  "description": "Password protected browser screen live room powered by Tencent Cloud TRTC.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
+    "build": "echo static build",
     "vercel-build": "echo static build"
   },
-  "dependencies": {},
+  "dependencies": {
+    "tls-sig-api-v2": "^1.0.2"
+  },
   "engines": {
     "node": ">=20"
   }

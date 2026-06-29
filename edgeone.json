@@ -1,0 +1,35 @@
+{
+  "name": "scshare",
+  "installCommand": "npm install",
+  "buildCommand": "npm run build",
+  "outputDirectory": "./public",
+  "nodeVersion": "22.11.0",
+  "cloudFunctions": {
+    "externalNodeModules": [
+      "tls-sig-api-v2"
+    ]
+  },
+  "headers": [
+    {
+      "source": "/*",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "display-capture=(self), microphone=(self)"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://web.sdk.qcloud.com; style-src 'self'; connect-src 'self' https: wss:; media-src 'self' blob:; img-src 'self' data:"
+        }
+      ]
+    }
+  ]
+}

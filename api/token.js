@@ -1,4 +1,4 @@
-const { handleToken, sendJson } = require('./_livekit');
+const { handleToken, sendJson } = require('./_trtc');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {

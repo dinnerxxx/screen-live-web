@@ -1,8 +1,0 @@
-services:
-  livekit:
-    image: livekit/livekit-server:latest
-    command: --config /etc/livekit.yaml
-    restart: unless-stopped
-    network_mode: host
-    volumes:
-      - ./livekit/livekit.yaml:/etc/livekit.yaml:ro

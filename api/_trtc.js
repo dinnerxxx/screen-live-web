@@ -1,13 +1,13 @@
 const crypto = require('node:crypto');
+const TLSSigAPIv2 = require('tls-sig-api-v2');
 
 const failedAttempts = new Map();
 
 function getConfig() {
   return {
-    livekitUrl: process.env.LIVEKIT_URL || 'ws://localhost:7880',
-    roomName: process.env.ROOM_NAME || 'friends-screen-room',
-    apiKey: process.env.LIVEKIT_API_KEY,
-    apiSecret: process.env.LIVEKIT_API_SECRET,
+    sdkAppId: Number(process.env.TRTC_SDK_APP_ID || 0),
+    sdkSecretKey: process.env.TRTC_SDK_SECRET_KEY,
+    roomId: process.env.TRTC_ROOM_ID || 'scshare-room',
     viewerPassword: process.env.VIEWER_PASSWORD,
     broadcasterPassword: process.env.BROADCASTER_PASSWORD,
     tokenTtlMinutes: Number(process.env.TOKEN_TTL_MINUTES || 120),
@@ -80,51 +80,32 @@ function recordFailure(req) {
   failedAttempts.set(key, record);
 }
 
-function cleanIdentity(displayName) {
+function cleanDisplayName(displayName) {
   const base = String(displayName || '').trim().slice(0, 24);
-  const safe = base.replace(/[^\p{L}\p{N}_ -]/gu, '') || 'friend';
-  return `${safe}-${crypto.randomBytes(3).toString('hex')}`;
+  return base.replace(/[^\p{L}\p{N}_ -]/gu, '') || '访客';
 }
 
-function base64Url(input) {
-  return Buffer.from(input).toString('base64url');
+function createUserId() {
+  return `u_${crypto.randomBytes(8).toString('hex')}`;
 }
 
-function signLiveKitToken({ identity, name, canPublish }) {
+function createUserSig(userId) {
   const config = getConfig();
-  const now = Math.floor(Date.now() / 1000);
-  const header = { alg: 'HS256', typ: 'JWT' };
-  const payload = {
-    iss: config.apiKey,
-    sub: identity,
-    name,
-    nbf: now - 5,
-    exp: now + config.tokenTtlMinutes * 60,
-    video: {
-      room: config.roomName,
-      roomJoin: true,
-      canSubscribe: true,
-      canPublish,
-      canPublishData: true,
-    },
-  };
-
-  const unsigned = `${base64Url(JSON.stringify(header))}.${base64Url(JSON.stringify(payload))}`;
-  const signature = crypto.createHmac('sha256', config.apiSecret).update(unsigned).digest('base64url');
-  return `${unsigned}.${signature}`;
+  const api = new TLSSigAPIv2.Api(config.sdkAppId, config.sdkSecretKey);
+  return api.genSig(userId, config.tokenTtlMinutes * 60);
 }
 
 async function handleConfig(_req, res) {
   const config = getConfig();
   sendJson(res, 200, {
-    livekitUrl: config.livekitUrl,
-    roomName: config.roomName,
+    sdkAppId: config.sdkAppId || null,
+    roomId: config.roomId,
   });
 }
 
 async function handleToken(req, res) {
   const config = getConfig();
-  if (!config.apiKey || !config.apiSecret || !config.viewerPassword || !config.broadcasterPassword) {
+  if (!config.sdkAppId || !config.sdkSecretKey || !config.viewerPassword || !config.broadcasterPassword) {
     sendJson(res, 500, { error: '服务端环境变量未配置完整。' });
     return;
   }
@@ -153,14 +134,16 @@ async function handleToken(req, res) {
     return;
   }
 
-  const identity = cleanIdentity(displayName);
-  const name = identity.split('-').slice(0, -1).join('-') || identity;
+  const userId = createUserId();
+  const name = cleanDisplayName(displayName);
   const isBroadcaster = wantsBroadcaster && canBroadcast;
-  const token = signLiveKitToken({ identity, name, canPublish: isBroadcaster });
+  const userSig = createUserSig(userId);
 
   sendJson(res, 200, {
-    token,
-    identity,
+    userSig,
+    userId,
+    identity: userId,
+    name,
     role: isBroadcaster ? 'broadcaster' : 'viewer',
   });
 }

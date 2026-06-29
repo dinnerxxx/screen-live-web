@@ -1,16 +1,20 @@
-import {
-  Room,
-  RoomEvent,
-  Track,
-} from 'https://cdn.jsdelivr.net/npm/livekit-client@2/+esm';
+import TRTC from 'https://cdn.jsdelivr.net/npm/trtc-sdk-v5/+esm';
+
+const STREAM_TYPE_MAIN = TRTC.TYPE?.STREAM_TYPE_MAIN || 'main';
+const STREAM_TYPE_SUB = TRTC.TYPE?.STREAM_TYPE_SUB || 'sub';
+const ROLE_ANCHOR = TRTC.TYPE?.ROLE_ANCHOR || 'anchor';
+const ROLE_AUDIENCE = TRTC.TYPE?.ROLE_AUDIENCE || 'audience';
+const SCENE_LIVE = TRTC.TYPE?.SCENE_LIVE || 'live';
 
 const state = {
-  room: null,
+  trtc: null,
   config: null,
   role: 'viewer',
+  userId: '',
   displayName: '',
-  localTracks: [],
+  localSharing: false,
   videoTiles: new Map(),
+  remoteUsers: new Set(),
 };
 
 const loginPanel = document.getElementById('loginPanel');
@@ -39,7 +43,7 @@ async function loadConfig() {
   const res = await fetch('/api/config');
   if (!res.ok) throw new Error('无法读取房间配置');
   state.config = await res.json();
-  roomNameText.textContent = state.config.roomName;
+  roomNameText.textContent = state.config.roomId;
 }
 
 function setLoginError(message) {
@@ -56,20 +60,20 @@ function setConnectionLabel(value) {
 }
 
 function updateOnlineCount() {
-  if (!state.room) return;
-  onlineCount.textContent = String(state.room.remoteParticipants.size + 1);
+  onlineCount.textContent = String(state.remoteUsers.size + 1);
 }
 
 function updateEmptyState() {
   emptyState.hidden = videosContainer.children.length > 0;
 }
 
-function participantLabel(participant) {
-  return participant?.name || participant?.identity || 'friend';
+function videoKey(userId, streamType) {
+  return `${userId}:${streamType || STREAM_TYPE_MAIN}`;
 }
 
-function tileKey(participant, publication) {
-  return `${participant.identity}:${publication.trackSid || publication.sid || publication.trackName}`;
+function streamLabel(userId, streamType) {
+  if (userId === state.userId) return '我的屏幕';
+  return streamType === STREAM_TYPE_SUB ? '主播屏幕' : userId;
 }
 
 async function requestTileFullscreen(tile) {
@@ -98,15 +102,14 @@ async function requestTileFullscreen(tile) {
 function updateFullscreenButtons() {
   for (const { tile } of state.videoTiles.values()) {
     const button = tile.querySelector('.fullscreen-btn');
-    if (button) {
-      button.textContent = document.fullscreenElement === tile ? '退出' : '全屏';
-    }
+    if (button) button.textContent = document.fullscreenElement === tile ? '退出' : '全屏';
   }
 }
 
-function addVideoTile(track, publication, participant) {
-  const key = tileKey(participant, publication);
-  if (state.videoTiles.has(key)) return;
+function createVideoTile({ userId, streamType, label }) {
+  const key = videoKey(userId, streamType);
+  const existing = state.videoTiles.get(key);
+  if (existing) return existing;
 
   const fragment = videoTileTemplate.content.cloneNode(true);
   const tile = fragment.querySelector('.video-tile');
@@ -114,16 +117,15 @@ function addVideoTile(track, publication, participant) {
   const name = fragment.querySelector('.participant-name');
   const muteBtn = fragment.querySelector('.mute-btn');
   const fullscreenBtn = fragment.querySelector('.fullscreen-btn');
-  const element = track.attach();
 
-  element.playsInline = true;
-  element.autoplay = true;
-  name.textContent = participantLabel(participant);
-  host.appendChild(element);
+  host.id = `video-${key.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+  name.textContent = label || streamLabel(userId, streamType);
 
   muteBtn.addEventListener('click', () => {
-    element.muted = !element.muted;
-    muteBtn.textContent = element.muted ? '取消静音' : '静音';
+    const video = host.querySelector('video');
+    if (!video) return;
+    video.muted = !video.muted;
+    muteBtn.textContent = video.muted ? '取消静音' : '静音';
   });
 
   fullscreenBtn.addEventListener('click', () => {
@@ -131,26 +133,19 @@ function addVideoTile(track, publication, participant) {
   });
 
   videosContainer.appendChild(tile);
-  state.videoTiles.set(key, { tile, track });
+  const entry = { tile, host, userId, streamType };
+  state.videoTiles.set(key, entry);
   updateEmptyState();
+  return entry;
 }
 
-function removeVideoTile(track, publication, participant) {
-  const key = tileKey(participant, publication);
+function removeVideoTile(userId, streamType) {
+  const key = videoKey(userId, streamType);
   const entry = state.videoTiles.get(key);
-  track.detach().forEach((element) => element.remove());
-  if (entry) {
-    entry.tile.remove();
-    state.videoTiles.delete(key);
-  }
+  if (!entry) return;
+  entry.tile.remove();
+  state.videoTiles.delete(key);
   updateEmptyState();
-}
-
-function attachAudio(track) {
-  const audio = track.attach();
-  audio.autoplay = true;
-  audio.hidden = true;
-  document.body.appendChild(audio);
 }
 
 function addChatMessage(author, text, isSystem = false) {
@@ -167,139 +162,143 @@ function addChatMessage(author, text, isSystem = false) {
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-async function connectRoom(token) {
-  const room = new Room({
-    adaptiveStream: true,
-    dynacast: true,
+function onTrtc(eventName, handler) {
+  if (eventName && typeof state.trtc?.on === 'function') {
+    state.trtc.on(eventName, handler);
+  }
+}
+
+function parseMessageData(data) {
+  try {
+    const text = typeof data === 'string' ? data : new TextDecoder().decode(data);
+    return JSON.parse(text);
+  } catch (_error) {
+    return null;
+  }
+}
+
+function bindTrtcEvents() {
+  const event = TRTC.EVENT || {};
+
+  onTrtc(event.ERROR, (error) => {
+    addChatMessage('', error?.message || 'TRTC 发生错误。', true);
   });
 
-  room.on(RoomEvent.ConnectionStateChanged, (status) => {
-    const labels = {
-      connected: '已连接',
-      connecting: '连接中',
-      disconnected: '已断开',
-      reconnecting: '重连中',
-    };
-    setConnectionLabel(labels[status] || status);
-  });
-
-  room.on(RoomEvent.ParticipantConnected, (participant) => {
+  onTrtc(event.REMOTE_USER_ENTER, ({ userId }) => {
+    if (userId) state.remoteUsers.add(userId);
     updateOnlineCount();
-    addChatMessage('', `${participantLabel(participant)} 加入了房间`, true);
   });
 
-  room.on(RoomEvent.ParticipantDisconnected, (participant) => {
+  onTrtc(event.REMOTE_USER_EXIT, ({ userId }) => {
+    if (userId) state.remoteUsers.delete(userId);
+    removeVideoTile(userId, STREAM_TYPE_MAIN);
+    removeVideoTile(userId, STREAM_TYPE_SUB);
     updateOnlineCount();
-    addChatMessage('', `${participantLabel(participant)} 离开了房间`, true);
   });
 
-  room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
-    if (track.kind === Track.Kind.Video) {
-      addVideoTile(track, publication, participant);
-    }
-    if (track.kind === Track.Kind.Audio) {
-      attachAudio(track);
-    }
-  });
-
-  room.on(RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
-    if (track.kind === Track.Kind.Video) {
-      removeVideoTile(track, publication, participant);
+  onTrtc(event.REMOTE_VIDEO_AVAILABLE, async ({ userId, streamType }) => {
+    const type = streamType || STREAM_TYPE_MAIN;
+    const entry = createVideoTile({ userId, streamType: type });
+    try {
+      await state.trtc.startRemoteVideo({ userId, streamType: type, view: entry.host.id });
+    } catch (_error) {
+      addChatMessage('', '远端画面播放失败，请刷新页面后重试。', true);
     }
   });
 
-  room.on(RoomEvent.DataReceived, (payload, participant, _kind, topic) => {
-    if (topic && topic !== 'chat') return;
-    const text = new TextDecoder().decode(payload);
-    addChatMessage(participantLabel(participant), text);
+  onTrtc(event.REMOTE_VIDEO_UNAVAILABLE, ({ userId, streamType }) => {
+    removeVideoTile(userId, streamType || STREAM_TYPE_MAIN);
   });
 
-  await room.connect(state.config.livekitUrl, token);
-  state.room = room;
+  onTrtc(event.CUSTOM_MESSAGE, ({ userId, data }) => {
+    const message = parseMessageData(data);
+    if (!message || message.type !== 'chat') return;
+    addChatMessage(message.name || userId || '访客', message.text || '');
+  });
+}
+
+async function connectRoom(auth) {
+  state.trtc = TRTC.create();
+  bindTrtcEvents();
+  setConnectionLabel('连接中');
+
+  await state.trtc.enterRoom({
+    sdkAppId: state.config.sdkAppId,
+    userId: auth.userId,
+    userSig: auth.userSig,
+    strRoomId: state.config.roomId,
+    role: auth.role === 'broadcaster' ? ROLE_ANCHOR : ROLE_AUDIENCE,
+    scene: SCENE_LIVE,
+  });
+
+  state.userId = auth.userId;
+  setConnectionLabel('已连接');
   updateOnlineCount();
 }
 
-async function publishTrack(track, options) {
-  const publication = await state.room.localParticipant.publishTrack(track, options);
-  state.localTracks.push({ track, publication });
-}
-
 async function startShare() {
-  if (!state.room || state.role !== 'broadcaster') return;
+  if (!state.trtc || state.role !== 'broadcaster') return;
 
   startShareBtn.disabled = true;
   try {
-    const screenStream = await navigator.mediaDevices.getDisplayMedia({
-      video: {
-        frameRate: { ideal: 30, max: 30 },
-        width: { ideal: 1280, max: 1280 },
-        height: { ideal: 720, max: 720 },
-      },
-      audio: true,
+    const entry = createVideoTile({
+      userId: state.userId,
+      streamType: STREAM_TYPE_SUB,
+      label: '我的屏幕',
     });
 
-    const [screenVideo] = screenStream.getVideoTracks();
-    if (screenVideo) {
-      screenVideo.addEventListener('ended', stopShare, { once: true });
-      await publishTrack(screenVideo, {
-        source: Track.Source.ScreenShare,
-        name: 'screen',
-        videoEncoding: {
-          maxBitrate: 2500000,
-          maxFramerate: 30,
-        },
-      });
-    }
+    await state.trtc.startScreenShare({
+      view: entry.host.id,
+      option: {
+        streamType: STREAM_TYPE_SUB,
+        profile: '720p',
+        systemAudio: true,
+        fillMode: 'contain',
+      },
+    });
 
-    for (const audioTrack of screenStream.getAudioTracks()) {
-      await publishTrack(audioTrack, {
-        source: Track.Source.ScreenShareAudio,
-        name: 'system-audio',
-      });
-    }
-
-    try {
-      const micStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
-      for (const micTrack of micStream.getAudioTracks()) {
-        await publishTrack(micTrack, {
-          source: Track.Source.Microphone,
-          name: 'microphone',
-        });
-      }
-    } catch (_error) {
-      addChatMessage('', '麦克风没有开启，当前只直播屏幕和可用的系统声音。', true);
-    }
-
+    state.localSharing = true;
     stopShareBtn.disabled = false;
-    addChatMessage('', '屏幕直播已开始', true);
-  } catch (error) {
+    addChatMessage('', '屏幕直播已开始。', true);
+  } catch (_error) {
     startShareBtn.disabled = false;
+    removeVideoTile(state.userId, STREAM_TYPE_SUB);
     addChatMessage('', '屏幕共享被取消或浏览器没有授权。', true);
   }
 }
 
 async function stopShare() {
-  if (!state.room) return;
+  if (!state.trtc || !state.localSharing) return;
 
-  const localTracks = [...state.localTracks];
-  state.localTracks = [];
-  for (const { track } of localTracks) {
-    try {
-      await state.room.localParticipant.unpublishTrack(track, true);
-    } catch (_error) {
-      track.stop();
-    }
+  try {
+    await state.trtc.stopScreenShare();
+  } catch (_error) {
+    // The track may already have ended from the browser share picker.
   }
 
+  state.localSharing = false;
+  removeVideoTile(state.userId, STREAM_TYPE_SUB);
   startShareBtn.disabled = state.role !== 'broadcaster';
   stopShareBtn.disabled = true;
-  addChatMessage('', '屏幕直播已停止', true);
+  addChatMessage('', '屏幕直播已停止。', true);
+}
+
+async function sendChatMessage(text) {
+  const message = JSON.stringify({
+    type: 'chat',
+    name: state.displayName || '访客',
+    text,
+  });
+  const data = new TextEncoder().encode(message).buffer;
+
+  if (typeof state.trtc?.sendCustomMessage !== 'function') {
+    throw new Error('当前 SDK 不支持自定义消息。');
+  }
+
+  await state.trtc.sendCustomMessage({
+    cmdId: 1,
+    data,
+  });
 }
 
 loginForm.addEventListener('submit', async (event) => {
@@ -327,12 +326,12 @@ loginForm.addEventListener('submit', async (event) => {
     }
 
     state.role = body.role;
-    state.displayName = displayNameInput.value.trim();
-    await connectRoom(body.token);
+    state.displayName = body.name || displayNameInput.value.trim();
+    await connectRoom(body);
     loginPanel.hidden = true;
     roomPanel.hidden = false;
     startShareBtn.disabled = state.role !== 'broadcaster';
-    currentUserText.textContent = state.displayName || body.identity;
+    currentUserText.textContent = state.displayName || body.userId;
     currentRoleText.textContent = state.role === 'broadcaster' ? '主播' : '观众';
     addChatMessage('', state.role === 'broadcaster' ? '你已作为主播进入房间' : '你已作为观众进入房间', true);
   } catch (error) {
@@ -347,15 +346,19 @@ stopShareBtn.addEventListener('click', stopShare);
 document.addEventListener('fullscreenchange', updateFullscreenButtons);
 document.addEventListener('webkitfullscreenchange', updateFullscreenButtons);
 
-chatForm.addEventListener('submit', (event) => {
+chatForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const text = chatInput.value.trim();
-  if (!text || !state.room) return;
+  if (!text || !state.trtc) return;
 
-  const payload = new TextEncoder().encode(text);
-  state.room.localParticipant.publishData(payload, { reliable: true, topic: 'chat' });
-  addChatMessage('我', text);
   chatInput.value = '';
+  addChatMessage('我', text);
+
+  try {
+    await sendChatMessage(text);
+  } catch (_error) {
+    addChatMessage('', '消息暂时没有发送出去。TRTC 自定义消息通常只支持主播端发送，观众聊天建议后续接入腾讯云 Chat。', true);
+  }
 });
 
 loadConfig().catch((error) => {
