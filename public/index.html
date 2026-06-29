@@ -12,10 +12,15 @@
       <div class="login-copy">
         <div class="brand-row">
           <span class="status-dot"></span>
-          <span>Private Live Room</span>
+          <span>Private TRTC Room</span>
         </div>
         <h1 id="loginTitle">scshare</h1>
-        <p class="login-subtitle">输入昵称和房间密码后进入直播间。</p>
+        <p class="login-subtitle">给朋友看的私密屏幕直播间。输入昵称和房间密码后进入，主播可以一键共享屏幕，观众可以直接观看和讨论。</p>
+        <div class="login-badges" aria-label="房间能力">
+          <span>密码保护</span>
+          <span>低延迟观看</span>
+          <span>屏幕全屏</span>
+        </div>
         <div class="login-preview" aria-hidden="true">
           <div class="preview-toolbar">
             <span></span>
@@ -33,6 +38,11 @@
         </div>
       </div>
       <div class="login-card">
+        <div class="login-card-header">
+          <p class="eyebrow">加入直播间</p>
+          <h2>选择身份并进入</h2>
+          <span>观众密码只能观看，主播密码可发起屏幕直播。</span>
+        </div>
         <form id="loginForm" class="login-form">
           <label>
             昵称
@@ -44,7 +54,10 @@
           </label>
           <label class="role-toggle">
             <input id="broadcasterInput" name="broadcaster" type="checkbox">
-            <span>我要发起屏幕直播</span>
+            <span>
+              <strong>我要发起屏幕直播</strong>
+              <small>勾选后需要输入主播密码</small>
+            </span>
           </label>
           <button id="loginSubmitBtn" type="submit">进入房间</button>
           <p id="loginError" class="error-text" role="alert"></p>
@@ -57,35 +70,73 @@
         <div class="room-title">
           <p class="eyebrow">房间</p>
           <h2 id="roomNameText">friends-screen-room</h2>
-          <span id="currentUserText" class="user-chip">访客</span>
+          <div class="room-meta">
+            <span id="currentUserText" class="user-chip">访客</span>
+            <span id="liveStateText" class="state-pill live-off">未开播</span>
+          </div>
         </div>
         <div class="topbar-actions">
           <span id="connectionState" class="state-pill">连接中</span>
           <span id="currentRoleText" class="state-pill muted">观众</span>
           <span class="counter"><span id="onlineCount">1</span> 人在线</span>
+          <button id="copyLinkBtn" type="button">复制链接</button>
           <button id="startShareBtn" class="primary-action" type="button">开始直播</button>
           <button id="stopShareBtn" type="button" disabled>停止</button>
+          <button id="leaveRoomBtn" class="danger-action" type="button">离开</button>
         </div>
       </header>
 
+      <section class="status-grid" aria-label="房间状态">
+        <div>
+          <span>直播时长</span>
+          <strong id="shareTimerText">00:00</strong>
+        </div>
+        <div>
+          <span>房间模式</span>
+          <strong>私密观看</strong>
+        </div>
+        <div>
+          <span>视频质量</span>
+          <strong>720p 屏幕共享</strong>
+        </div>
+      </section>
+
       <div class="content-grid">
         <section class="stage" aria-label="直播画面">
+          <div class="stage-toolbar">
+            <div>
+              <span>Live stage</span>
+              <strong id="stageHintText">等待主播开始共享</strong>
+            </div>
+            <button id="stageFullscreenBtn" type="button" disabled>全屏观看</button>
+          </div>
           <div id="emptyState" class="empty-state">
+            <div class="empty-icon" aria-hidden="true"></div>
             <strong>等待屏幕直播</strong>
             <span>主播开始共享后，画面会显示在这里</span>
           </div>
           <div id="videosContainer" class="videos-container"></div>
         </section>
 
-        <aside class="side-panel" aria-label="聊天">
+        <aside class="side-panel" aria-label="讨论区和成员">
           <div class="panel-header">
             <h3>讨论区</h3>
             <span>Live chat</span>
           </div>
+          <div class="members-panel">
+            <div class="mini-title">
+              <span>在线成员</span>
+              <strong id="memberCountText">1</strong>
+            </div>
+            <div id="participantsList" class="participants-list"></div>
+          </div>
           <div id="chatMessages" class="chat-messages" aria-live="polite"></div>
           <form id="chatForm" class="chat-form">
             <input id="chatInput" maxlength="300" placeholder="说点什么..." autocomplete="off">
-            <button type="submit">发送</button>
+            <div class="chat-actions">
+              <span id="chatCountText">0/300</span>
+              <button type="submit">发送</button>
+            </div>
           </form>
         </aside>
       </div>

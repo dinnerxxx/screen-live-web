@@ -15,6 +15,8 @@ const state = {
   localSharing: false,
   videoTiles: new Map(),
   remoteUsers: new Set(),
+  shareStartedAt: 0,
+  shareTimerId: 0,
 };
 
 const loginPanel = document.getElementById('loginPanel');
@@ -30,13 +32,22 @@ const currentUserText = document.getElementById('currentUserText');
 const currentRoleText = document.getElementById('currentRoleText');
 const onlineCount = document.getElementById('onlineCount');
 const connectionState = document.getElementById('connectionState');
+const liveStateText = document.getElementById('liveStateText');
+const shareTimerText = document.getElementById('shareTimerText');
+const stageHintText = document.getElementById('stageHintText');
+const stageFullscreenBtn = document.getElementById('stageFullscreenBtn');
+const copyLinkBtn = document.getElementById('copyLinkBtn');
+const leaveRoomBtn = document.getElementById('leaveRoomBtn');
 const startShareBtn = document.getElementById('startShareBtn');
 const stopShareBtn = document.getElementById('stopShareBtn');
 const videosContainer = document.getElementById('videosContainer');
 const emptyState = document.getElementById('emptyState');
+const memberCountText = document.getElementById('memberCountText');
+const participantsList = document.getElementById('participantsList');
 const chatMessages = document.getElementById('chatMessages');
 const chatForm = document.getElementById('chatForm');
 const chatInput = document.getElementById('chatInput');
+const chatCountText = document.getElementById('chatCountText');
 const videoTileTemplate = document.getElementById('videoTileTemplate');
 
 async function loadConfig() {
@@ -60,11 +71,17 @@ function setConnectionLabel(value) {
 }
 
 function updateOnlineCount() {
-  onlineCount.textContent = String(state.remoteUsers.size + 1);
+  const count = state.remoteUsers.size + 1;
+  onlineCount.textContent = String(count);
+  memberCountText.textContent = String(count);
+  updateParticipantsList();
 }
 
 function updateEmptyState() {
-  emptyState.hidden = videosContainer.children.length > 0;
+  const hasVideo = videosContainer.children.length > 0;
+  emptyState.hidden = hasVideo;
+  stageFullscreenBtn.disabled = !hasVideo;
+  stageHintText.textContent = hasVideo ? '正在观看屏幕直播' : '等待主播开始共享';
 }
 
 function videoKey(userId, streamType) {
@@ -74,6 +91,59 @@ function videoKey(userId, streamType) {
 function streamLabel(userId, streamType) {
   if (userId === state.userId) return '我的屏幕';
   return streamType === STREAM_TYPE_SUB ? '主播屏幕' : userId;
+}
+
+function formatDuration(ms) {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const minutes = String(Math.floor(total / 60)).padStart(2, '0');
+  const seconds = String(total % 60).padStart(2, '0');
+  return `${minutes}:${seconds}`;
+}
+
+function setLiveState(isLive) {
+  liveStateText.textContent = isLive ? '直播中' : '未开播';
+  liveStateText.classList.toggle('live-on', isLive);
+  liveStateText.classList.toggle('live-off', !isLive);
+}
+
+function startShareTimer() {
+  state.shareStartedAt = Date.now();
+  shareTimerText.textContent = '00:00';
+  clearInterval(state.shareTimerId);
+  state.shareTimerId = setInterval(() => {
+    shareTimerText.textContent = formatDuration(Date.now() - state.shareStartedAt);
+  }, 1000);
+}
+
+function stopShareTimer() {
+  clearInterval(state.shareTimerId);
+  state.shareTimerId = 0;
+  state.shareStartedAt = 0;
+  shareTimerText.textContent = '00:00';
+}
+
+function updateParticipantsList() {
+  participantsList.replaceChildren();
+
+  const local = document.createElement('div');
+  local.className = 'participant-chip';
+  const localName = document.createElement('span');
+  const localRole = document.createElement('strong');
+  localName.textContent = state.displayName || '我';
+  localRole.textContent = state.role === 'broadcaster' ? '主播' : '我';
+  local.append(localName, localRole);
+  participantsList.appendChild(local);
+
+  for (const userId of state.remoteUsers) {
+    const item = document.createElement('div');
+    item.className = 'participant-chip';
+    const name = document.createElement('span');
+    const role = document.createElement('strong');
+    name.textContent = userId;
+    role.textContent = '在线';
+    item.append(name, role);
+    participantsList.appendChild(item);
+  }
 }
 
 async function requestTileFullscreen(tile) {
@@ -136,6 +206,7 @@ function createVideoTile({ userId, streamType, label }) {
   const entry = { tile, host, userId, streamType };
   state.videoTiles.set(key, entry);
   updateEmptyState();
+  setLiveState(true);
   return entry;
 }
 
@@ -146,12 +217,14 @@ function removeVideoTile(userId, streamType) {
   entry.tile.remove();
   state.videoTiles.delete(key);
   updateEmptyState();
+  if (state.videoTiles.size === 0 && !state.localSharing) setLiveState(false);
 }
 
 function addChatMessage(author, text, isSystem = false) {
   const line = document.createElement('p');
   line.className = 'chat-line';
   if (isSystem) {
+    line.classList.add('system');
     line.textContent = text;
   } else {
     const strong = document.createElement('strong');
@@ -234,6 +307,7 @@ async function connectRoom(auth) {
   state.userId = auth.userId;
   setConnectionLabel('已连接');
   updateOnlineCount();
+  updateParticipantsList();
 }
 
 async function startShare() {
@@ -258,6 +332,8 @@ async function startShare() {
     });
 
     state.localSharing = true;
+    setLiveState(true);
+    startShareTimer();
     stopShareBtn.disabled = false;
     addChatMessage('', '屏幕直播已开始。', true);
   } catch (_error) {
@@ -277,10 +353,54 @@ async function stopShare() {
   }
 
   state.localSharing = false;
+  setLiveState(state.videoTiles.size > 1);
+  stopShareTimer();
   removeVideoTile(state.userId, STREAM_TYPE_SUB);
   startShareBtn.disabled = state.role !== 'broadcaster';
   stopShareBtn.disabled = true;
   addChatMessage('', '屏幕直播已停止。', true);
+}
+
+async function leaveRoom() {
+  stopShareTimer();
+  try {
+    if (state.localSharing) await stopShare();
+    if (state.trtc?.exitRoom) await state.trtc.exitRoom();
+    if (state.trtc?.destroy) state.trtc.destroy();
+  } catch (_error) {
+    // Leaving should always return the UI to the login screen.
+  }
+
+  state.trtc = null;
+  state.userId = '';
+  state.role = 'viewer';
+  state.localSharing = false;
+  state.remoteUsers.clear();
+  state.videoTiles.clear();
+  videosContainer.replaceChildren();
+  chatMessages.replaceChildren();
+  setLiveState(false);
+  updateEmptyState();
+  updateOnlineCount();
+  roomPanel.hidden = true;
+  loginPanel.hidden = false;
+  startShareBtn.disabled = true;
+  stopShareBtn.disabled = true;
+  setConnectionLabel('未连接');
+}
+
+async function copyInviteLink() {
+  try {
+    await navigator.clipboard.writeText(window.location.href);
+    addChatMessage('', '邀请链接已复制。', true);
+  } catch (_error) {
+    addChatMessage('', '复制失败，可以直接复制浏览器地址栏链接。', true);
+  }
+}
+
+function fullscreenFirstVideo() {
+  const first = state.videoTiles.values().next().value;
+  if (first) requestTileFullscreen(first.tile);
 }
 
 async function sendChatMessage(text) {
@@ -333,6 +453,7 @@ loginForm.addEventListener('submit', async (event) => {
     startShareBtn.disabled = state.role !== 'broadcaster';
     currentUserText.textContent = state.displayName || body.userId;
     currentRoleText.textContent = state.role === 'broadcaster' ? '主播' : '观众';
+    updateParticipantsList();
     addChatMessage('', state.role === 'broadcaster' ? '你已作为主播进入房间' : '你已作为观众进入房间', true);
   } catch (error) {
     setLoginError(error.message || '网络错误');
@@ -343,8 +464,15 @@ loginForm.addEventListener('submit', async (event) => {
 
 startShareBtn.addEventListener('click', startShare);
 stopShareBtn.addEventListener('click', stopShare);
+leaveRoomBtn.addEventListener('click', leaveRoom);
+copyLinkBtn.addEventListener('click', copyInviteLink);
+stageFullscreenBtn.addEventListener('click', fullscreenFirstVideo);
 document.addEventListener('fullscreenchange', updateFullscreenButtons);
 document.addEventListener('webkitfullscreenchange', updateFullscreenButtons);
+
+chatInput.addEventListener('input', () => {
+  chatCountText.textContent = `${chatInput.value.length}/300`;
+});
 
 chatForm.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -352,6 +480,7 @@ chatForm.addEventListener('submit', async (event) => {
   if (!text || !state.trtc) return;
 
   chatInput.value = '';
+  chatCountText.textContent = '0/300';
   addChatMessage('我', text);
 
   try {
