@@ -185,38 +185,92 @@ input:focus {
   height: 42px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 12px;
   padding: 0 14px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.preview-toolbar span {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--gold);
+.preview-toolbar strong {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 13px;
 }
 
-.preview-toolbar span:nth-child(2) {
-  background: #56a99f;
-}
-
-.preview-toolbar span:nth-child(3) {
-  background: #dfe7e4;
+.preview-toolbar em {
+  min-height: 24px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  color: #83e0c8;
+  background: rgba(15, 118, 110, 0.22);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
 }
 
 .preview-screen {
   padding: 22px;
 }
 
-.preview-grid {
+.preview-window {
+  position: relative;
   aspect-ratio: 16 / 9;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
   border-radius: 8px;
   background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
-    linear-gradient(0deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
-    linear-gradient(135deg, #122536, #0f766e);
-  background-size: 34px 34px, 34px 34px, auto;
+    radial-gradient(circle at 24% 22%, rgba(131, 224, 200, 0.22), transparent 30%),
+    linear-gradient(135deg, #132133, #0c111b 58%, #0f2729);
+}
+
+.preview-window::before {
+  content: "";
+  position: absolute;
+  inset: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+}
+
+.preview-window span {
+  position: relative;
+  z-index: 1;
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.preview-pulse {
+  position: absolute;
+  width: 118px;
+  height: 118px;
+  border-radius: 50%;
+  background: rgba(15, 118, 110, 0.28);
+  box-shadow: 0 0 0 28px rgba(15, 118, 110, 0.09);
+}
+
+.preview-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.preview-stats span {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.62);
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.preview-stats strong {
+  display: block;
+  margin-bottom: 2px;
+  color: #fff;
+  font-size: 16px;
 }
 
 .preview-chat {
@@ -226,21 +280,14 @@ input:focus {
 }
 
 .preview-chat span {
-  height: 10px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.18);
-}
-
-.preview-chat span:nth-child(1) {
-  width: 74%;
-}
-
-.preview-chat span:nth-child(2) {
-  width: 52%;
-}
-
-.preview-chat span:nth-child(3) {
-  width: 86%;
+  width: fit-content;
+  max-width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.76);
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .login-card {
