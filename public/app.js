@@ -72,6 +72,38 @@ function tileKey(participant, publication) {
   return `${participant.identity}:${publication.trackSid || publication.sid || publication.trackName}`;
 }
 
+async function requestTileFullscreen(tile) {
+  try {
+    if (document.fullscreenElement === tile) {
+      await document.exitFullscreen();
+      return;
+    }
+
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+    }
+
+    if (tile.requestFullscreen) {
+      await tile.requestFullscreen();
+    } else if (tile.webkitRequestFullscreen) {
+      tile.webkitRequestFullscreen();
+    } else {
+      addChatMessage('', '当前浏览器不支持全屏播放。', true);
+    }
+  } catch (_error) {
+    addChatMessage('', '浏览器没有允许进入全屏，请手动再点一次全屏按钮。', true);
+  }
+}
+
+function updateFullscreenButtons() {
+  for (const { tile } of state.videoTiles.values()) {
+    const button = tile.querySelector('.fullscreen-btn');
+    if (button) {
+      button.textContent = document.fullscreenElement === tile ? '退出' : '全屏';
+    }
+  }
+}
+
 function addVideoTile(track, publication, participant) {
   const key = tileKey(participant, publication);
   if (state.videoTiles.has(key)) return;
@@ -81,6 +113,7 @@ function addVideoTile(track, publication, participant) {
   const host = fragment.querySelector('.video-host');
   const name = fragment.querySelector('.participant-name');
   const muteBtn = fragment.querySelector('.mute-btn');
+  const fullscreenBtn = fragment.querySelector('.fullscreen-btn');
   const element = track.attach();
 
   element.playsInline = true;
@@ -91,6 +124,10 @@ function addVideoTile(track, publication, participant) {
   muteBtn.addEventListener('click', () => {
     element.muted = !element.muted;
     muteBtn.textContent = element.muted ? '取消静音' : '静音';
+  });
+
+  fullscreenBtn.addEventListener('click', () => {
+    requestTileFullscreen(tile);
   });
 
   videosContainer.appendChild(tile);
@@ -307,6 +344,8 @@ loginForm.addEventListener('submit', async (event) => {
 
 startShareBtn.addEventListener('click', startShare);
 stopShareBtn.addEventListener('click', stopShare);
+document.addEventListener('fullscreenchange', updateFullscreenButtons);
+document.addEventListener('webkitfullscreenchange', updateFullscreenButtons);
 
 chatForm.addEventListener('submit', (event) => {
   event.preventDefault();

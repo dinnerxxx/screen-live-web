@@ -381,11 +381,26 @@ input:focus {
   background: #111722;
 }
 
+.video-tile:fullscreen {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  width: 100vw;
+  height: 100vh;
+  border: 0;
+  border-radius: 0;
+  background: #05080d;
+}
+
 .video-host {
   aspect-ratio: 16 / 9;
   display: grid;
   place-items: center;
   background: #080b10;
+}
+
+.video-tile:fullscreen .video-host {
+  aspect-ratio: auto;
+  min-height: 0;
 }
 
 .video-host video {
@@ -410,7 +425,14 @@ input:focus {
   font-weight: 700;
 }
 
-.mute-btn {
+.video-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.mute-btn,
+.fullscreen-btn {
   min-width: 68px;
   padding: 7px 10px;
   background: #384353;
